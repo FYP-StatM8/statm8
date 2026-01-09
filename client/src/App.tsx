@@ -9,6 +9,7 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import Home from "./pages/Home";
 import MyReports from "./pages/MyReports";
+import ReportDetails from "./pages/ReportDetails";
 import MyProfile from "./pages/MyProfile";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./context/authContext";
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/my-reports" element={<ProtectedRoute><MyReports /></ProtectedRoute>} />
+            <Route path="/my-reports/:reportid" element={<ProtectedRoute><ReportDetails /></ProtectedRoute>} />
             <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
