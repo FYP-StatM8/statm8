@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, CSVFile, GenerateEDARequest, StreamCodeBlockResponse } from "@/lib/api";
+import { 
+  api, 
+  CSVFile, 
+  GenerateEDARequest, 
+  StreamCodeBlockResponse,
+  AnalyzePlotsRequest,
+  StreamPlotAnalysisResponse,
+  ExportRequest
+} from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 export function useUploadAndAnalyze() {
@@ -72,6 +80,56 @@ export function useGenerateEDAStream() {
   };
 }
 
+export function useAnalyzePlotsStream() {
+  const { toast } = useToast();
+
+  return {
+    generate: (
+      request: AnalyzePlotsRequest,
+      onChunk: (data: StreamPlotAnalysisResponse) => void,
+      onComplete?: () => void
+    ) => {
+      return api.analyzePlotsStream(
+        request,
+        onChunk,
+        (error) => {
+          toast({
+            title: "Plot analysis failed",
+            description: error.message || "Failed to analyze plots",
+            variant: "destructive",
+          });
+        },
+        () => {
+          onComplete?.();
+        }
+      );
+    },
+  };
+}
+
+export function useGenerateExport() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: ExportRequest) => api.generateExport(request),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["csvExports"] });
+      toast({
+        title: "Export generated successfully",
+        description: `Your ${data.format.toUpperCase()} export is ready`,
+      });
+    },
+    onError: (error: Error | { message?: string }) => {
+      toast({
+        title: "Export generation failed",
+        description: error instanceof Error ? error.message : error.message || "Failed to generate export",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 export function useUserCSVs(uid: string | null) {
   return useQuery({
     queryKey: ["userCSVs", uid],
@@ -90,11 +148,36 @@ export function useCSVComments(csvId: string | null) {
 }
 
 export function useCSVVLMSummaries(uid: string | null, csvId: string | null) {
-  console.log(uid, csvId, "hehe");
   return useQuery({
-    queryKey: ["csvComments", csvId],
+    queryKey: ["csvVLMSummaries", uid, csvId],
     queryFn: () =>
-      uid && csvId ? api.getCSVVLMSummaries(uid, csvId) : Promise.resolve({ comments: [] }),
+      csvId ? api.getCSVVLMAnalyses(csvId, uid || undefined) : Promise.resolve({ vlm_analyses: [], count: 0 }),
+    enabled: !!csvId,
+  });
+}
+
+export function useCSVExports(uid: string | null, csvId: string | null) {
+  return useQuery({
+    queryKey: ["csvExports", uid, csvId],
+    queryFn: () =>
+      csvId ? api.getCSVExports(csvId, uid || undefined) : Promise.resolve({ exports: [] }),
+    enabled: !!csvId,
+  });
+}
+
+export function useExportStatus(csvId: string | null, uid: string | null) {
+  return useQuery({
+    queryKey: ["exportStatus", csvId, uid],
+    queryFn: () =>
+      csvId ? api.getExportStatus(csvId, uid || undefined) : Promise.resolve({
+        csv_id: "",
+        csv_name: "",
+        has_summary: false,
+        has_plots: false,
+        plot_count: 0,
+        has_vlm_analysis: false,
+        can_export: false,
+      }),
     enabled: !!csvId,
   });
 }
