@@ -156,12 +156,14 @@ export function useCSVVLMSummaries(uid: string | null, csvId: string | null) {
   });
 }
 
-export function useCSVExports(uid: string | null, csvId: string | null) {
+export function useCSVExports(uid: string | null, csvId: string | null, limit: number = 20) {
   return useQuery({
-    queryKey: ["csvExports", uid, csvId],
+    queryKey: ["csvExports", uid, csvId, limit],
     queryFn: () =>
-      csvId ? api.getCSVExports(csvId, uid || undefined) : Promise.resolve({ exports: [] }),
-    enabled: !!csvId,
+      csvId && uid 
+        ? api.getCSVExports(csvId, uid, limit) 
+        : Promise.resolve({ csv_id: "", uid: "", exports: [], total: 0 }),
+    enabled: !!csvId && !!uid,
   });
 }
 

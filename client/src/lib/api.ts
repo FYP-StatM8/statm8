@@ -109,20 +109,23 @@ export interface ExportRequest {
   format: "pdf" | "markdown" | "latex";
 }
 
+// Updated Export interface to match actual API response
 export interface Export {
+  _id: string;
+  uid: string;
   csv_id: string;
+  vlm_analysis_id?: string;
   csv_name: string;
+  format: string;
+  cloudinary_url: string;  // Changed from download_url
+  public_id: string;
   file_size_bytes: number;
   sections_included: string[];
   total_plots: number;
-  generated_at: string;
-  status: string;
-  download_url: string;
-  export_id: string;
-  format: string;
-  is_zip: boolean;
+  created_at: string;  // Changed from generated_at
 }
 
+// Response from generating a new export
 export interface ExportResponse {
   csv_id: string;
   csv_name: string;
@@ -388,7 +391,6 @@ export const api = {
       
       return { vlm_analyses: [], count: 0 };
     } catch (error) {
-      // If 404 or any error, return empty array
       if (error instanceof ApiError) {
         console.log("Error fetching VLM analyses:", error.message);
       }
@@ -407,31 +409,46 @@ export const api = {
     }) as Promise<ExportResponse>;
   },
 
-  async getCSVExports(csvId: string, uid?: string): Promise<{ exports: Export[] }> {
-    const params = new URLSearchParams();
-    if (uid) {
-      params.append("uid", uid);
+  async getCSVExports(csvId: string, uid: string, limit: number = 20): Promise<{ 
+    csv_id: string;
+    uid: string;
+    exports: Export[];
+    total: number;
+  }> {
+    if (!uid) {
+      return { csv_id: csvId, uid: "", exports: [], total: 0 };
     }
+
+    const params = new URLSearchParams();
+    params.append("uid", uid);
+    params.append("limit", limit.toString());
     
-    const queryString = params.toString();
-    const endpoint = `/export/status/${csvId}${queryString ? `?${queryString}` : ''}`;
+    const endpoint = `/export/csv/${csvId}?${params.toString()}`;
     
     try {
       const response = await fetchApi(endpoint);
       
       if (response && typeof response === 'object') {
-        const typedResponse = response as { exports?: Export[] };
+        const typedResponse = response as { 
+          csv_id: string;
+          uid: string;
+          exports: Export[];
+          total: number;
+        };
         return {
-          exports: typedResponse.exports || []
+          csv_id: typedResponse.csv_id || csvId,
+          uid: typedResponse.uid || uid,
+          exports: typedResponse.exports || [],
+          total: typedResponse.total || 0
         };
       }
       
-      return { exports: [] };
+      return { csv_id: csvId, uid, exports: [], total: 0 };
     } catch (error) {
       if (error instanceof ApiError) {
         console.log("Error fetching exports:", error.message);
       }
-      return { exports: [] };
+      return { csv_id: csvId, uid, exports: [], total: 0 };
     }
   },
 
