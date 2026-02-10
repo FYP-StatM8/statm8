@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import AuthNavigation from "@/components/AuthNavigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,8 +16,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-
-// Import the tab components
 import ReportSummary from "@/components/ReportSummary";
 import ReportComments from "@/components/ReportComments";
 import ReportVLMSummaries from "@/components/ReportVLMSummaries";
@@ -28,10 +26,13 @@ const MyReports = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
   const [selectedCSV, setSelectedCSV] = useState<CSVFile | null>(null);
   const [selectedComment, setSelectedComment] = useState<Comment | null>(null);
   const [selectedVLMAnalysis, setSelectedVLMAnalysis] = useState<VLMAnalysis | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("summary");
 
   const { data: csvsData, isLoading: isLoadingCSVs, error: csvsError } = useUserCSVs(user?.uid || null);
   const { data: commentsData, isLoading: isLoadingComments } = useCSVComments(selectedCSV?._id || null);
@@ -41,22 +42,38 @@ const MyReports = () => {
 
   const [csvs, setCsvs] = useState<Array<CSVFile>>([]);
 
+  // Sort CSVs by creation date
   useEffect(() => {
     if (csvsData?.csvs) {
-      const sortedCSVs: Array<CSVFile> = csvsData.csvs;
+      const sortedCSVs: Array<CSVFile> = [...csvsData.csvs];
       sortedCSVs.sort(
         (a, b) =>
           new Date(b.created_at).getTime() -
           new Date(a.created_at).getTime()
       );
-
       setCsvs(sortedCSVs);
     }
   }, [csvsData]);
 
+  // Handle URL params - open dialog if csvId is in URL
+  useEffect(() => {
+    const csvId = searchParams.get('csvId');
+    const tab = searchParams.get('tab');
+    
+    if (csvId && csvs.length > 0) {
+      const csv = csvs.find(c => c._id === csvId);
+      if (csv) {
+        setSelectedCSV(csv);
+        setIsDetailDialogOpen(true);
+        if (tab) {
+          setActiveTab(tab);
+        }
+      }
+    }
+  }, [searchParams, csvs]);
+
   const handleRefetchComments = async () => {
     if (selectedCSV?._id) {
-      console.log("Refetching comments for CSV:", selectedCSV._id);
       await queryClient.invalidateQueries({ 
         queryKey: ["csvComments", selectedCSV._id],
         refetchType: 'active'
@@ -69,7 +86,6 @@ const MyReports = () => {
 
   const handleRefetchVLMSummaries = async () => {
     if (selectedCSV?._id && user?.uid) {
-      console.log("Refetching VLM summaries for CSV:", selectedCSV._id);
       await queryClient.invalidateQueries({ 
         queryKey: ["csvVLMSummaries", user.uid, selectedCSV._id],
         refetchType: 'active'
@@ -82,7 +98,6 @@ const MyReports = () => {
 
   const handleRefetchExports = async () => {
     if (selectedCSV?._id && user?.uid) {
-      console.log("Refetching exports for CSV:", selectedCSV._id);
       await queryClient.invalidateQueries({ 
         queryKey: ["csvExports", user.uid, selectedCSV._id],
         refetchType: 'active'
@@ -96,6 +111,25 @@ const MyReports = () => {
   const handleViewReport = (csv: CSVFile) => {
     setSelectedCSV(csv);
     setIsDetailDialogOpen(true);
+    setActiveTab("summary");
+    // Update URL with csvId and tab
+    setSearchParams({ csvId: csv._id, tab: "summary" });
+  };
+
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    // Update URL with new tab
+    if (selectedCSV) {
+      setSearchParams({ csvId: selectedCSV._id, tab: newTab });
+    }
+  };
+
+  const handleCloseDialog = () => {
+    setIsDetailDialogOpen(false);
+    setSelectedCSV(null);
+    setActiveTab("summary");
+    // Remove params from URL
+    setSearchParams({});
   };
 
   const handleViewComment = (comment: Comment) => {
@@ -123,7 +157,11 @@ const MyReports = () => {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Download failed:", error);
-      alert("Failed to download the file.");
+      toast({
+        title: "Download failed",
+        description: "Failed to download the file. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -279,7 +317,7 @@ const MyReports = () => {
             </div>
 
             {/* Report Details Dialog with Tabs */}
-            <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+            <Dialog open={isDetailDialogOpen} onOpenChange={handleCloseDialog}>
               <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{selectedCSV?.csv_name || "Report Details"}</DialogTitle>
@@ -288,7 +326,7 @@ const MyReports = () => {
                   </DialogDescription>
                 </DialogHeader>
                 {selectedCSV && (
-                  <Tabs defaultValue="summary" className="w-full">
+                  <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                     <TabsList>
                       <TabsTrigger value="summary">Summary</TabsTrigger>
                       <TabsTrigger value="comments">Comments</TabsTrigger>

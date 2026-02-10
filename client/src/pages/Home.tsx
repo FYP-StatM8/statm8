@@ -6,15 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/authContext";
-import { useUploadAndAnalyze, useGenerateEDAStream, useUserCSVs } from "@/hooks/useApi";
-import { DatasetSummaryResponse, StreamCodeBlockResponse } from "@/lib/api";
+import { useUploadAndAnalyze, useUserCSVs } from "@/hooks/useApi";
+import { DatasetSummaryResponse } from "@/lib/api";
 import {
   Upload,
   FileSpreadsheet,
   BarChart3,
   Loader2,
-  CheckCircle2,
-  XCircle,
   Play,
   Brain,
   Sparkles,
@@ -22,7 +20,7 @@ import {
   Users,
   Download
 } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -170,7 +168,6 @@ const Home = () => {
       }
     }, 0) || 0,
     insightsDiscovered: 0
-    // insightsDiscovered: streamingBlocks.filter(b => b.status === "success").length,
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -302,6 +299,7 @@ const Home = () => {
           </Card>
         </div>
 
+        {/* Upload Dialog */}
         <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[80vh]">
             <DialogHeader>
@@ -367,6 +365,7 @@ const Home = () => {
           </DialogContent>
         </Dialog>
 
+        {/* Analysis Results Dialog */}
         <Dialog open={isAnalysisDialogOpen} onOpenChange={setIsAnalysisDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh]">
             <DialogHeader>
@@ -503,8 +502,12 @@ const Home = () => {
           </DialogContent>
         </Dialog>
 
+        {/* EDA Generation Dialog */}
         <Dialog open={isGenerateDialogOpen} onOpenChange={setIsGenerateDialogOpen}>
-          <CommentDialog csv_id={analysisResult?.csv_id || ""} setIsGenerateDialogOpen={setIsAnalysisDialogOpen} />
+          <CommentDialog 
+            csv_id={analysisResult?.csv_id || ""} 
+            setIsGenerateDialogOpen={setIsGenerateDialogOpen}
+          />
         </Dialog>
       </main>
     </div>
