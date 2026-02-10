@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, Download, Eye, Plus, Calendar, FileSpreadsheet } from "lucide-react";
 import { useAuth } from "@/context/authContext";
-import { useUserCSVs, useCSVComments, useCommentAssets, useCSVVLMSummaries } from "@/hooks/useApi";
-import { CSVFile, Comment, CommentAsset } from "@/lib/api";
+import { useUserCSVs, useCSVComments, useCommentAssets, useCSVVLMSummaries, useCSVExports } from "@/hooks/useApi";
+import { CSVFile, Comment, CommentAsset, VLMAnalysis } from "@/lib/api";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
-// Import the new tab components
+// Import the tab components
 import ReportSummary from "@/components/ReportSummary";
 import ReportComments from "@/components/ReportComments";
 import ReportVLMSummaries from "@/components/ReportVLMSummaries";
@@ -30,11 +30,13 @@ const MyReports = () => {
   const queryClient = useQueryClient();
   const [selectedCSV, setSelectedCSV] = useState<CSVFile | null>(null);
   const [selectedComment, setSelectedComment] = useState<Comment | null>(null);
+  const [selectedVLMAnalysis, setSelectedVLMAnalysis] = useState<VLMAnalysis | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
   const { data: csvsData, isLoading: isLoadingCSVs, error: csvsError } = useUserCSVs(user?.uid || null);
   const { data: commentsData, isLoading: isLoadingComments } = useCSVComments(selectedCSV?._id || null);
   const { data: vlmSummariesData, isLoading: isLoadingVLMSummary } = useCSVVLMSummaries(user?.uid || null, selectedCSV?._id || null);
+  const { data: exportsData, isLoading: isLoadingExports } = useCSVExports(user?.uid || null, selectedCSV?._id || null);
   const { data: assetsData, isLoading: isLoadingAssets } = useCommentAssets(selectedComment?._id || null);
 
   const [csvs, setCsvs] = useState<Array<CSVFile>>([]);
@@ -55,14 +57,38 @@ const MyReports = () => {
   const handleRefetchComments = async () => {
     if (selectedCSV?._id) {
       console.log("Refetching comments for CSV:", selectedCSV._id);
-      // Invalidate and refetch the query
       await queryClient.invalidateQueries({ 
         queryKey: ["csvComments", selectedCSV._id],
         refetchType: 'active'
       });
-      // Force an immediate refetch
       await queryClient.refetchQueries({ 
         queryKey: ["csvComments", selectedCSV._id] 
+      });
+    }
+  };
+
+  const handleRefetchVLMSummaries = async () => {
+    if (selectedCSV?._id && user?.uid) {
+      console.log("Refetching VLM summaries for CSV:", selectedCSV._id);
+      await queryClient.invalidateQueries({ 
+        queryKey: ["csvVLMSummaries", user.uid, selectedCSV._id],
+        refetchType: 'active'
+      });
+      await queryClient.refetchQueries({ 
+        queryKey: ["csvVLMSummaries", user.uid, selectedCSV._id] 
+      });
+    }
+  };
+
+  const handleRefetchExports = async () => {
+    if (selectedCSV?._id && user?.uid) {
+      console.log("Refetching exports for CSV:", selectedCSV._id);
+      await queryClient.invalidateQueries({ 
+        queryKey: ["csvExports", user.uid, selectedCSV._id],
+        refetchType: 'active'
+      });
+      await queryClient.refetchQueries({ 
+        queryKey: ["csvExports", user.uid, selectedCSV._id] 
       });
     }
   };
@@ -76,35 +102,25 @@ const MyReports = () => {
     setSelectedComment(comment);
   };
 
+  const handleViewVLMAnalysis = (analysis: VLMAnalysis) => {
+    setSelectedVLMAnalysis(analysis);
+  };
+
   const handleDownload = async (csv_url: string, csv_name: string) => {
     try {
-      // 1. Fetch the file as a blob
       const response = await fetch(csv_url);
       const blob = await response.blob();
-
-      // 2. Create a temporary URL for that blob
       const url = window.URL.createObjectURL(blob);
-
-      // 3. Create a hidden link element
       const link = document.createElement('a');
       link.href = url;
-
-      // 4. Force the filename using your report name
-      // We ensure it ends with .csv
       const filename = csv_name.endsWith('.csv')
         ? csv_name
         : `${csv_name}.csv`;
-
       link.setAttribute('download', filename);
-
-      // 5. Append, click, and cleanup
       document.body.appendChild(link);
       link.click();
-
-      // Clean up DOM and memory
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(url);
-
     } catch (error) {
       console.error("Download failed:", error);
       alert("Failed to download the file.");
@@ -296,13 +312,23 @@ const MyReports = () => {
                     
                     <TabsContent value="vlm_summary">
                       <ReportVLMSummaries 
+                        csvId={selectedCSV._id}
+                        uid={user?.uid || ""}
                         isLoadingVLMSummary={isLoadingVLMSummary}
-                        vlmSummaries={vlmSummariesData}
+                        vlmSummaries={vlmSummariesData?.vlm_analyses}
+                        onViewAnalysis={handleViewVLMAnalysis}
+                        onRefetch={handleRefetchVLMSummaries}
                       />
                     </TabsContent>
                     
                     <TabsContent value="exports">
-                      <ReportExports />
+                      <ReportExports 
+                        csvId={selectedCSV._id}
+                        uid={user?.uid || ""}
+                        isLoadingExports={isLoadingExports}
+                        exports={exportsData?.exports}
+                        onRefetch={handleRefetchExports}
+                      />
                     </TabsContent>
                   </Tabs>
                 )}
@@ -378,6 +404,67 @@ const MyReports = () => {
                         </CardContent>
                       </Card>
                     )}
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* VLM Analysis Dialog */}
+            {selectedVLMAnalysis && (
+              <Dialog open={!!selectedVLMAnalysis} onOpenChange={() => setSelectedVLMAnalysis(null)}>
+                <DialogContent className="max-w-6xl max-h-[90vh]">
+                  <DialogHeader>
+                    <DialogTitle>VLM Analysis Details</DialogTitle>
+                    <DialogDescription>
+                      Vision Language Model analysis of generated plots
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
+                    <div className="space-y-6 pb-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Overall Summary</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm whitespace-pre-wrap">
+                            {selectedVLMAnalysis.summary || "No summary available"}
+                          </p>
+                        </CardContent>
+                      </Card>
+
+                      {selectedVLMAnalysis.plot_analyses && 
+                       selectedVLMAnalysis.plot_analyses.length > 0 && (
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold">Plot Analyses</h3>
+                          {selectedVLMAnalysis.plot_analyses.map((plotAnalysis, idx) => (
+                            <Card key={idx}>
+                              <CardHeader>
+                                <CardTitle className="text-sm">
+                                  {plotAnalysis.plot_filename}
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                {plotAnalysis.plot_url && (
+                                  <div className="border rounded-lg overflow-hidden">
+                                    <img
+                                      src={plotAnalysis.plot_url}
+                                      alt={plotAnalysis.plot_filename}
+                                      className="w-full h-auto max-h-96 object-contain bg-white"
+                                    />
+                                  </div>
+                                )}
+                                <div className="bg-muted p-4 rounded-lg">
+                                  <Label className="text-xs mb-2 block font-semibold">Analysis</Label>
+                                  <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                                    {plotAnalysis.analysis}
+                                  </p>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </ScrollArea>
                 </DialogContent>
               </Dialog>
