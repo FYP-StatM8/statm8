@@ -89,6 +89,16 @@ export function useCSVComments(csvId: string | null) {
   });
 }
 
+export function useCSVVLMSummaries(uid: string | null, csvId: string | null) {
+  console.log(uid, csvId, "hehe");
+  return useQuery({
+    queryKey: ["csvComments", csvId],
+    queryFn: () =>
+      uid && csvId ? api.getCSVVLMSummaries(uid, csvId) : Promise.resolve({ comments: [] }),
+    enabled: !!csvId,
+  });
+}
+
 export function useCommentAssets(commentId: string | null) {
   return useQuery({
     queryKey: ["commentAssets", commentId],
