@@ -5,13 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/authContext";
 import { useUploadAndAnalyze, useGenerateEDAStream, useUserCSVs } from "@/hooks/useApi";
 import { DatasetSummaryResponse, StreamCodeBlockResponse } from "@/lib/api";
-import { 
-  Upload, 
-  FileSpreadsheet, 
+import {
+  Upload,
+  FileSpreadsheet,
   BarChart3,
   Loader2,
   CheckCircle2,
@@ -29,25 +28,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import CommentDialog from "@/components/CommentDialog";
 
 const Home = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysisResult, setAnalysisResult] = useState<DatasetSummaryResponse | null>(null);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false);
-  const [comments, setComments] = useState("");
-  const [streamingBlocks, setStreamingBlocks] = useState<StreamCodeBlockResponse[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
 
   const uploadMutation = useUploadAndAnalyze();
   const { data: userCSVs, isLoading: isLoadingCSVs } = useUserCSVs(user?.uid || null);
-  const edaStream = useGenerateEDAStream();
 
   const features = [
     {
@@ -131,15 +127,15 @@ const Home = () => {
   ];
 
   const quickActions = [
-    { 
-      icon: Upload, 
-      label: "Upload Dataset", 
+    {
+      icon: Upload,
+      label: "Upload Dataset",
       color: "text-blue-500",
       onClick: () => setIsUploadDialogOpen(true)
     },
-    { 
-      icon: FileSpreadsheet, 
-      label: "New Analysis", 
+    {
+      icon: FileSpreadsheet,
+      label: "New Analysis",
       color: "text-green-500",
       onClick: () => {
         if (analysisResult) {
@@ -149,15 +145,15 @@ const Home = () => {
         }
       }
     },
-    { 
-      icon: BarChart3, 
-      label: "View Dashboard", 
+    {
+      icon: BarChart3,
+      label: "View Dashboard",
       color: "text-purple-500",
       onClick: () => navigate("/my-reports")
     },
-    { 
-      icon: Download, 
-      label: "Export Report", 
+    {
+      icon: Download,
+      label: "Export Report",
       color: "text-orange-500",
       onClick: () => navigate("/my-reports")
     }
@@ -173,7 +169,8 @@ const Home = () => {
         return acc;
       }
     }, 0) || 0,
-    insightsDiscovered: streamingBlocks.filter(b => b.status === "success").length,
+    insightsDiscovered: 0
+    // insightsDiscovered: streamingBlocks.filter(b => b.status === "success").length,
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -219,62 +216,10 @@ const Home = () => {
     }
   };
 
-  const handleGenerateEDA = async () => {
-    if (!analysisResult?.csv_id || !user?.uid || !selectedFile) {
-      toast({
-        title: "Missing information",
-        description: "Please upload and analyze a file first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsStreaming(true);
-    setStreamingBlocks([]);
-
-    const baseFileName = selectedFile.name.replace(/\.(csv|json)$/, '');
-    const filePath = `uploads/${baseFileName}.csv`;
-    
-    try {
-      await edaStream.generate(
-        {
-          file_path: filePath,
-          comments: comments || undefined,
-          uid: user.uid,
-          csv_id: analysisResult.csv_id,
-        },
-        (chunk: StreamCodeBlockResponse) => {
-          setStreamingBlocks((prev) => {
-            const existingIndex = prev.findIndex((b) => b.block_id === chunk.block_id);
-            if (existingIndex >= 0) {
-              const updated = [...prev];
-              updated[existingIndex] = chunk;
-              return updated;
-            }
-            return [...prev, chunk];
-          });
-        },
-        () => {
-          setIsStreaming(false);
-          setIsGenerateDialogOpen(false);
-        }
-      );
-    } catch (error: unknown) {
-      setIsStreaming(false);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      console.error("EDA generation error:", errorMessage);
-      toast({
-        title: "EDA generation error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <AuthNavigation />
-      
+
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16">
         <div className="mb-12">
           <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
@@ -289,8 +234,8 @@ const Home = () => {
           {quickActions.map((action, index) => {
             const Icon = action.icon;
             return (
-              <Card 
-                key={index} 
+              <Card
+                key={index}
                 className="hover:shadow-[var(--shadow-elegant)] transition-all cursor-pointer hover:scale-105"
                 onClick={action.onClick}
               >
@@ -386,7 +331,7 @@ const Home = () => {
                   Select File
                 </Button>
               </div>
-              
+
               {selectedFile && (
                 <div className="flex gap-2">
                   <Button
@@ -559,137 +504,7 @@ const Home = () => {
         </Dialog>
 
         <Dialog open={isGenerateDialogOpen} onOpenChange={setIsGenerateDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh]">
-            <DialogHeader>
-              <DialogTitle>Generate Exploratory Data Analysis</DialogTitle>
-              <DialogDescription>
-                Add optional comments to guide the EDA generation process
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="comments">Comments (Optional)</Label>
-                <Textarea
-                  id="comments"
-                  placeholder="E.g., Focus on correlation analysis, Check for outliers in the age column..."
-                  value={comments}
-                  onChange={(e) => setComments(e.target.value)}
-                  rows={4}
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsGenerateDialogOpen(false);
-                    setStreamingBlocks([]);
-                    setIsStreaming(false);
-                  }}
-                  disabled={isStreaming}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="hero"
-                  onClick={handleGenerateEDA}
-                  disabled={isStreaming || !analysisResult}
-                >
-                  {isStreaming ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <BarChart3 className="mr-2 h-4 w-4" />
-                      Generate EDA
-                    </>
-                  )}
-                </Button>
-              </div>
-              {streamingBlocks.length > 0 && (
-                <ScrollArea className="h-[400px] border rounded-lg p-4">
-                  <div className="space-y-4">
-                    {streamingBlocks.map((block) => (
-                      <Card key={block.block_id}>
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm">
-                              Block {block.block_id}: {block.description}
-                            </CardTitle>
-                            <Badge
-                              variant={
-                                block.status === "success"
-                                  ? "default"
-                                  : block.status === "error"
-                                  ? "destructive"
-                                  : block.status === "executing"
-                                  ? "secondary"
-                                  : "outline"
-                              }
-                            >
-                              {block.status === "success" && (
-                                <CheckCircle2 className="mr-1 h-3 w-3" />
-                              )}
-                              {block.status === "error" && (
-                                <XCircle className="mr-1 h-3 w-3" />
-                              )}
-                              {block.status === "executing" && (
-                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                              )}
-                              {block.status}
-                            </Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                          {block.code && (
-                            <div>
-                              <Label className="text-xs">Code</Label>
-                              <ScrollArea className="h-32 border rounded p-2 bg-muted">
-                                <pre className="text-xs">{block.code}</pre>
-                              </ScrollArea>
-                            </div>
-                          )}
-                          {block.output && (
-                            <div>
-                              <Label className="text-xs">Output</Label>
-                              <ScrollArea className="h-24 border rounded p-2 bg-muted">
-                                <pre className="text-xs whitespace-pre-wrap">{block.output}</pre>
-                              </ScrollArea>
-                            </div>
-                          )}
-                          {block.error && (
-                            <div>
-                              <Label className="text-xs text-destructive">Error</Label>
-                              <ScrollArea className="h-24 border border-destructive rounded p-2 bg-destructive/10">
-                                <pre className="text-xs text-destructive whitespace-pre-wrap">
-                                  {block.error}
-                                </pre>
-                              </ScrollArea>
-                            </div>
-                          )}
-                          {block.plots_generated && block.plots_generated.length > 0 && (
-                            <div>
-                              <Label className="text-xs">
-                                Generated Plots ({block.plots_generated.length})
-                              </Label>
-                              <div className="flex gap-2 flex-wrap mt-1">
-                                {block.plots_generated.map((plot, idx) => (
-                                  <Badge key={idx} variant="outline">
-                                    {plot}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-            </div>
-          </DialogContent>
+          <CommentDialog csv_id={analysisResult?.csv_id || ""} setIsGenerateDialogOpen={setIsAnalysisDialogOpen} />
         </Dialog>
       </main>
     </div>

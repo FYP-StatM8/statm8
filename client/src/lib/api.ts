@@ -20,7 +20,6 @@ export interface ColumnInfo {
 }
 
 export interface GenerateEDARequest {
-  file_path: string;
   comments?: string;
   uid: string;
   csv_id: string;
@@ -77,7 +76,7 @@ async function fetchApi(
   options: RequestInit = {}
 ): Promise<unknown> {
   const url = `${API_BASE_URL}${endpoint}`;
-  
+
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -144,7 +143,6 @@ export const api = {
         },
         body: JSON.stringify(request),
       });
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new ApiError(
@@ -165,7 +163,7 @@ export const api = {
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (done) {
           onComplete?.();
           break;
@@ -217,6 +215,15 @@ export const api = {
 
   async getCSVComments(csvId: string): Promise<{ comments: Comment[] }> {
     return fetchApi(`/storage/csv/${csvId}/comments`) as Promise<{ comments: Comment[] }>;
+  },
+
+  async getCSVVLMSummaries(uid: string, csvId: string): Promise<{ comments: Comment[] }> {
+    const params = new URLSearchParams({
+      uid: uid,
+      csv_id: csvId
+    });
+    console.log(uid, csvId);
+    return fetchApi(`/vlm_analysis/user_specific_dataset?${params.toString()}`) as Promise<{ comments: Comment[] }>;
   },
 
   async getCommentAssets(commentId: string): Promise<{ assets: CommentAsset[] }> {
