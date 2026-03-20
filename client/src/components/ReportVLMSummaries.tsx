@@ -24,7 +24,12 @@ const VLMSummaryCard = ({
   analysis: VLMAnalysis; 
   onViewAnalysis: () => void 
 }) => {
-  const date = new Date(analysis.created_at + "Z").toLocaleString("en-IN", {
+  // Handle UTC dates without Z suffix
+  let dateStr = analysis.created_at;
+  if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+    dateStr = dateStr + 'Z';
+  }
+  const date = new Date(dateStr).toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
   });
 

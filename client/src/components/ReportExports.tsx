@@ -31,8 +31,12 @@ const ExportCard = ({
   onView: () => void;
   isDownloading: boolean;
 }) => {
-  // Convert UTC to IST (Asia/Kolkata)
-  const utcDate = new Date(exportItem.created_at);
+  // Convert UTC to IST - handle dates without Z suffix
+  let dateStr = exportItem.created_at;
+  if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+    dateStr = dateStr + 'Z';
+  }
+  const utcDate = new Date(dateStr);
   const istDate = toZonedTime(utcDate, 'Asia/Kolkata');
   const dateString = format(istDate, "MMM dd, yyyy 'at' h:mm a");
 

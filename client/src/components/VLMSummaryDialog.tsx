@@ -37,6 +37,64 @@ interface VLMSummaryDialogProps {
   onGenerationComplete?: () => void;
 }
 
+// Helper function to extract readable error message
+const getErrorMessage = (error: any): string => {
+  console.log("Raw error object:", error);
+  
+  // If error is a string
+  if (typeof error === 'string') {
+    return error;
+  }
+  
+  // If error has a message property that's a string
+  if (error?.message && typeof error.message === 'string') {
+    try {
+      // Try to parse message as JSON
+      const parsed = JSON.parse(error.message);
+      if (parsed.detail) {
+        if (Array.isArray(parsed.detail)) {
+          return parsed.detail.map((err: any) => {
+            const field = err.loc?.slice(1).join(' > ') || 'field';
+            return `${field}: ${err.msg}`;
+          }).join('; ');
+        }
+        return typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
+      }
+      return error.message;
+    } catch {
+      return error.message;
+    }
+  }
+  
+  // If error has detail property directly
+  if (error?.detail) {
+    if (Array.isArray(error.detail)) {
+      return error.detail.map((err: any) => {
+        const field = err.loc?.slice(1).join(' > ') || 'field';
+        return `${field}: ${err.msg}`;
+      }).join('; ');
+    }
+    return typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
+  }
+  
+  // If error has response.data
+  if (error?.response?.data) {
+    const data = error.response.data;
+    if (data.detail) {
+      if (Array.isArray(data.detail)) {
+        return data.detail.map((err: any) => {
+          const field = err.loc?.slice(1).join(' > ') || 'field';
+          return `${field}: ${err.msg}`;
+        }).join('; ');
+      }
+      return typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+    }
+  }
+  
+  // Default fallback
+  return 'An error occurred while generating VLM analysis';
+};
+
 const VLMSummaryDialog = ({ 
   csv_id, 
   uid,
@@ -47,10 +105,6 @@ const VLMSummaryDialog = ({
   const { toast } = useToast();
   const analyzePlotsStream = useAnalyzePlotsStream();
   const { data: commentsData, isLoading: isLoadingComments } = useCSVComments(csv_id);
-  
-  useEffect(() => {
-    console.log("Comments data:", commentsData);
-  }, [commentsData]);
   
   const [selectedCommentId, setSelectedCommentId] = useState<string>("no_comment");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -78,7 +132,6 @@ const VLMSummaryDialog = ({
         },
         (chunk: StreamPlotAnalysisResponse) => {
           setStreamingResults((prev) => {
-            // Check if this is an update to existing plot or new plot
             const existingIndex = prev.findIndex(
               (r) => r.plot_index === chunk.plot_index && !r.is_summary
             );
@@ -92,7 +145,6 @@ const VLMSummaryDialog = ({
           });
         },
         () => {
-          // Stream completed successfully
           setIsStreaming(false);
           toast({
             title: "VLM Analysis Complete",
@@ -104,12 +156,12 @@ const VLMSummaryDialog = ({
           }
         }
       );
-    } catch (error: unknown) {
+    } catch (error: any) {
       setIsStreaming(false);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      console.error("VLM analysis error:", errorMessage);
+      const errorMessage = getErrorMessage(error);
+      console.error("VLM analysis error:", error);
       toast({
-        title: "VLM analysis error",
+        title: "VLM analysis failed",
         description: errorMessage,
         variant: "destructive",
       });

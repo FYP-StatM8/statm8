@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/context/authContext";
 import { 
   Dialog, 
@@ -38,6 +38,64 @@ interface ExportDialogProps {
   setIsExportDialogOpen: (open: boolean) => void;
   onExportComplete?: () => void;
 }
+
+// Helper function to extract readable error message
+const getErrorMessage = (error: any): string => {
+  console.log("Raw error object:", error);
+  
+  // If error is a string
+  if (typeof error === 'string') {
+    return error;
+  }
+  
+  // If error has a message property that's a string
+  if (error?.message && typeof error.message === 'string') {
+    try {
+      // Try to parse message as JSON
+      const parsed = JSON.parse(error.message);
+      if (parsed.detail) {
+        if (Array.isArray(parsed.detail)) {
+          return parsed.detail.map((err: any) => {
+            const field = err.loc?.slice(1).join(' > ') || 'field';
+            return `${field}: ${err.msg}`;
+          }).join('; ');
+        }
+        return typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
+      }
+      return error.message;
+    } catch {
+      return error.message;
+    }
+  }
+  
+  // If error has detail property directly
+  if (error?.detail) {
+    if (Array.isArray(error.detail)) {
+      return error.detail.map((err: any) => {
+        const field = err.loc?.slice(1).join(' > ') || 'field';
+        return `${field}: ${err.msg}`;
+      }).join('; ');
+    }
+    return typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
+  }
+  
+  // If error has response.data
+  if (error?.response?.data) {
+    const data = error.response.data;
+    if (data.detail) {
+      if (Array.isArray(data.detail)) {
+        return data.detail.map((err: any) => {
+          const field = err.loc?.slice(1).join(' > ') || 'field';
+          return `${field}: ${err.msg}`;
+        }).join('; ');
+      }
+      return typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+    }
+  }
+  
+  // Default fallback
+  return 'An error occurred while generating export';
+};
 
 const ExportDialog = ({ 
   csv_id, 
@@ -93,9 +151,9 @@ const ExportDialog = ({
       if (onExportComplete) {
         onExportComplete();
       }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      console.error("Export generation error:", errorMessage);
+    } catch (error: any) {
+      const errorMessage = getErrorMessage(error);
+      console.error("Export generation error:", error);
       toast({
         title: "Export generation failed",
         description: errorMessage,
@@ -285,4 +343,4 @@ const ExportDialog = ({
   );
 };
 
-export default ExportDialog;
+export default ExportDialog;  
